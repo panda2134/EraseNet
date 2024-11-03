@@ -58,7 +58,7 @@ class LossWithGAN_STE(nn.Module):
 
         self.D_optimizer.zero_grad()
         D_loss.backward(retain_graph=True)
-        self.D_optimizer.step()
+        # self.D_optimizer.step()
 
         self.writer.add_scalar('LossD/Discrinimator loss', D_loss.item(), count)
         

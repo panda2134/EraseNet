@@ -106,7 +106,10 @@ for i in range(1, num_epochs + 1):
         G_loss = criterion(imgs, masks, x_o1, x_o2, x_o3, fake_images, mm, gt, count, i)
         G_loss = G_loss.sum()
         G_optimizer.zero_grad()
+        criterion.discriminator.requires_grad_(False)
         G_loss.backward()
+        criterion.discriminator.requires_grad_(True)
+        criterion.D_optimizer.step()
         G_optimizer.step()       
 
         print('[{}/{}] Generator Loss of epoch{} is {}'.format(k,len(Erase_data),i, G_loss.item()))
