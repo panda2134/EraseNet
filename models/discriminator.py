@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from .networks import ConvWithActivation, get_pad
+from .modules import ConvWithActivation, get_pad
 
 ##discriminator
 class Discriminator_STE(nn.Module):

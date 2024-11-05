@@ -9,7 +9,7 @@ import numpy as np
 from torch.autograd import Variable
 from torchvision.utils import save_image
 from torch.utils.data import DataLoader
-from data.dataloader import devdata
+from data.dataloader import DevData
 from scipy import signal, ndimage
 import gauss
 
@@ -118,7 +118,7 @@ def visual(image):
     im =(image).transpose(1,2).transpose(2,3).detach().cpu().numpy()
     Image.fromarray(im[0].astype(np.uint8)).show()
 
-imgData = devdata(dataRoot=img_path, gtRoot=gt_path)
+imgData = DevData(data_root=img_path, gt_root=gt_path)
 data_loader = DataLoader(imgData, batch_size=1, shuffle=True, num_workers=0, drop_last=False)
 
 for k, (img,lbl,path) in enumerate(data_loader):

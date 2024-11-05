@@ -10,7 +10,7 @@ from torch.autograd import Variable
 from torchvision.utils import save_image
 from torch.utils.data import DataLoader
 from data.dataloader import ErasingData
-from models.sa_gan import STRnet2
+from models.ensexam import EnsExamNet
 
 
 parser = argparse.ArgumentParser()
@@ -57,7 +57,7 @@ Erase_data = ErasingData(dataRoot, loadSize, training=False)
 Erase_data = DataLoader(Erase_data, batch_size=batchSize, shuffle=True, num_workers=args.numOfWorkers, drop_last=False)
 
 
-netG = STRnet2(3)
+netG = EnsExamNet(3)
 
 netG.load_state_dict(torch.load(args.pretrained))
 

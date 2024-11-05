@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-import torch.nn.functional as F
+from models.cbam import CBAM
 import torch.nn as nn
 
 def get_pad(in_,  ksize, stride, atrous=1):
@@ -30,8 +30,12 @@ class DeConvWithActivation(torch.nn.Module):
     """
     SN convolution for spetral normalization conv
     """
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, activation=torch.nn.LeakyReLU(0.2, inplace=True)):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, use_cbam=True, activation=torch.nn.LeakyReLU(0.2, inplace=True)):
         super(DeConvWithActivation, self).__init__()
+        self.use_cbam = use_cbam
+        if use_cbam:
+            self.cbam = CBAM(in_channels)
+            # self.cbam = torch.nn.utils.spectral_norm(self.cbam) # cannot be used here?
         self.conv2d = torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
         self.conv2d = torch.nn.utils.spectral_norm(self.conv2d)
         self.activation = activation
@@ -39,7 +43,9 @@ class DeConvWithActivation(torch.nn.Module):
             if isinstance(m, nn.ConvTranspose2d):
                 nn.init.kaiming_normal_(m.weight)
     def forward(self, input):
-        x = self.conv2d(input)
+        x = input
+        if self.use_cbam: x = self.cbam(x)
+        x = self.conv2d(x)
         if self.activation is not None:
             return self.activation(x)
         else:

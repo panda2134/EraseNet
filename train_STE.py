@@ -13,13 +13,13 @@ from torchvision import datasets
 from torch.utils.data import DataLoader
 from torchvision import utils
 from data.dataloader import ErasingData
-from loss.Loss import LossWithGAN_STE
-from models.Model import VGG16FeatureExtractor
-from models.sa_gan import STRnet2
+from loss.loss import LossWithGAN_STE
+from models.feature_extract import VGG16FeatureExtractor
+from models.ensexam import EnsExamNet
 
 torch.set_num_threads(5)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"    ### set the gpu as No....
+# os.environ["CUDA_VISIBLE_DEVICES"] = "3"    ### set the gpu as No....
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--numOfWorkers', type=int, default=0,
@@ -33,13 +33,13 @@ parser.add_argument('--loadSize', type=int, default=512,
                     help='image loading size')
 parser.add_argument('--dataRoot', type=str,
                     default='')
-parser.add_argument('--pretrained',type=str, default='', help='pretrained models for finetuning')
+parser.add_argument('--pretrained', type=str, default='', help='pretrained models for finetuning')
 parser.add_argument('--num_epochs', type=int, default=500, help='epochs')
 args = parser.parse_args()
 
 
 def visual(image):
-    im = image.transpose(1,2).transpose(2,3).detach().cpu().numpy()
+    im = image.transpose(1, 2).transpose(2, 3).detach().cpu().numpy()
     Image.fromarray(im[0].astype(np.uint8)).show()
 
 
@@ -58,11 +58,11 @@ if not os.path.exists(args.modelsSavePath):
 dataRoot = args.dataRoot
 
 # import pdb;pdb.set_trace()
-Erase_data = ErasingData(dataRoot, loadSize, training=True)
-Erase_data = DataLoader(Erase_data, batch_size=batchSize, 
-                         shuffle=True, num_workers=args.numOfWorkers, drop_last=False, pin_memory=True)
+erase_data = ErasingData(dataRoot, loadSize, training=True)
+erase_data = DataLoader(erase_data, batch_size=batchSize,
+                        shuffle=True, num_workers=args.numOfWorkers, drop_last=False, pin_memory=True)
 
-netG = STRnet2(3)
+netG = EnsExamNet()
 
 if args.pretrained != '':
     print('loaded ')
@@ -77,9 +77,7 @@ if cuda:
 
 count = 1
 
-
 G_optimizer = optim.Adam(netG.parameters(), lr=0.0001, betas=(0.5, 0.9))
-
 
 criterion = LossWithGAN_STE(args.logPath, VGG16FeatureExtractor(), lr=0.00001, betasInit=(0.0, 0.9), Lamda=10.0)
 
@@ -95,31 +93,32 @@ num_epochs = args.num_epochs
 for i in range(1, num_epochs + 1):
     netG.train()
 
-    for k,(imgs, gt, masks, path) in enumerate(Erase_data):
+    for k, (imgs, gt, masks, stroke_masks, path) in enumerate(erase_data):
         if cuda:
             imgs = imgs.cuda()
             gt = gt.cuda()
             masks = masks.cuda()
+            stroke_masks = stroke_masks.cuda()
         netG.zero_grad()
 
-        x_o1,x_o2,x_o3,fake_images,mm = netG(imgs)
-        G_loss = criterion(imgs, masks, x_o1, x_o2, x_o3, fake_images, mm, gt, count, i)
+        x_o1, x_o2, x_o3, output, mm, stroke_mm = netG(imgs)
+        G_loss = criterion(imgs, masks, gt, stroke_masks, x_o1, x_o2, x_o3, output, mm, stroke_mm, count, i)
         G_loss = G_loss.sum()
         G_optimizer.zero_grad()
         criterion.discriminator.requires_grad_(False)
         G_loss.backward()
         criterion.discriminator.requires_grad_(True)
         criterion.D_optimizer.step()
-        G_optimizer.step()       
+        G_optimizer.step()
 
-        print('[{}/{}] Generator Loss of epoch{} is {}'.format(k,len(Erase_data),i, G_loss.item()))
+        print('[{}/{}] Generator Loss of epoch{} is {}'.format(k, len(erase_data), i, G_loss.item()))
 
         count += 1
-    
-    if ( i % 10 == 0):
-        if numOfGPUs > 1 :
+
+    if i % 10 == 0:
+        if numOfGPUs > 1:
             torch.save(netG.module.state_dict(), args.modelsSavePath +
-                    '/STE_{}.pth'.format(i))
+                       '/STE_{}.pth'.format(i))
         else:
             torch.save(netG.state_dict(), args.modelsSavePath +
-                    '/STE_{}.pth'.format(i))
+                       '/STE_{}.pth'.format(i))

@@ -1,3 +1,5 @@
+import os.path
+
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
@@ -51,48 +53,49 @@ class ErasingData(Dataset):
     def __getitem__(self, index):
         img = Image.open(self.imageFiles[index])
         mask = Image.open(self.imageFiles[index].replace('all_images','mask'))
+        stroke_mask = Image.open(self.imageFiles[index].replace('all_images','stroke_mask').replace('jpg', 'png'))
         gt = Image.open(self.imageFiles[index].replace('all_images','all_labels'))
-        # import pdb;pdb.set_trace()
+
         if self.training:
         # ### for data augmentation
-            all_input = [img, mask, gt]
+            all_input = [img, mask, stroke_mask, gt]
             all_input = random_horizontal_flip(all_input)   
             all_input = random_rotate(all_input)
             img = all_input[0]
             mask = all_input[1]
+            stroke_mask = all_input[2]
             gt = all_input[2]
         ### for data augmentation
         inputImage = self.ImgTrans(img.convert('RGB'))
         mask = self.ImgTrans(mask.convert('RGB'))
+        stroke_mask = self.ImgTrans(stroke_mask.convert('RGB'))
         groundTruth = self.ImgTrans(gt.convert('RGB'))
         path = self.imageFiles[index].split('/')[-1]
        # import pdb;pdb.set_trace()
 
-        return inputImage, groundTruth, mask, path
+        return inputImage, groundTruth, mask, stroke_mask, path
     
     def __len__(self):
         return len(self.imageFiles)
 
-class devdata(Dataset):
-    def __init__(self, dataRoot, gtRoot, loadSize=512):
-        super(devdata, self).__init__()
-        self.imageFiles = [join (dataRootK, files) for dataRootK, dn, filenames in walk(dataRoot) \
-            for files in filenames if CheckImageFile(files)]
-        self.gtFiles = [join (gtRootK, files) for gtRootK, dn, filenames in walk(gtRoot) \
-            for files in filenames if CheckImageFile(files)]
-        self.loadSize = loadSize
-        self.ImgTrans = ImageTransform(loadSize)
+class DevData(Dataset):
+    def __init__(self, data_root, gt_root, load_size=512):
+        super(DevData, self).__init__()
+        self.image_files = [join (dataRootK, files) for dataRootK, dn, filenames in walk(data_root) \
+                            for files in filenames if CheckImageFile(files)]
+        self.gt_root = gt_root
+        self.load_size = load_size
+        self.img_transform = ImageTransform(load_size)
     
     def __getitem__(self, index):
-        img = Image.open(self.imageFiles[index])
-        gt = Image.open(self.gtFiles[index])
-        #import pdb;pdb.set_trace()
-        inputImage = self.ImgTrans(img.convert('RGB'))
+        img = Image.open(self.image_files[index])
+        gt = Image.open(os.path.join(self.gt_root, os.path.basename(self.image_files[index])))
+        inputImage = self.img_transform(img.convert('RGB'))
 
-        groundTruth = self.ImgTrans(gt.convert('RGB'))
-        path = self.imageFiles[index].split('/')[-1]
+        groundTruth = self.img_transform(gt.convert('RGB'))
+        path = self.image_files[index].split('/')[-1]
 
         return inputImage, groundTruth,path
     
     def __len__(self):
-        return len(self.imageFiles)
+        return len(self.image_files)
