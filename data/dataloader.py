@@ -64,7 +64,7 @@ class ErasingData(Dataset):
             img = all_input[0]
             mask = all_input[1]
             stroke_mask = all_input[2]
-            gt = all_input[2]
+            gt = all_input[3]
         ### for data augmentation
         inputImage = self.ImgTrans(img.convert('RGB'))
         mask = self.ImgTrans(mask.convert('RGB'))

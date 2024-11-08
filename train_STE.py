@@ -102,7 +102,7 @@ for i in range(1, num_epochs + 1):
         netG.zero_grad()
 
         x_o1, x_o2, x_o3, output, mm, stroke_mm = netG(imgs)
-        G_loss = criterion(imgs, masks, gt, stroke_masks, x_o1, x_o2, x_o3, output, mm, stroke_mm, count, i)
+        G_loss = criterion(imgs, gt, masks, stroke_masks, x_o1, x_o2, x_o3, output, mm, stroke_mm, count, i)
         G_loss = G_loss.sum()
         G_optimizer.zero_grad()
         criterion.discriminator.requires_grad_(False)

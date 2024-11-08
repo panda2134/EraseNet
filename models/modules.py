@@ -30,7 +30,8 @@ class DeConvWithActivation(torch.nn.Module):
     """
     SN convolution for spetral normalization conv
     """
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, use_cbam=True, activation=torch.nn.LeakyReLU(0.2, inplace=True)):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True,
+                 use_cbam=True, activation=torch.nn.LeakyReLU(0.2, inplace=True)):
         super(DeConvWithActivation, self).__init__()
         self.use_cbam = use_cbam
         if use_cbam:

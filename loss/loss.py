@@ -40,7 +40,7 @@ class LossWithGAN_STE(nn.Module):
     def __init__(self, logPath, extractor, Lamda, lr, betasInit=(0.5, 0.9)):
         super(LossWithGAN_STE, self).__init__()
         self.l1 = nn.L1Loss()
-        self.l1_sum = nn.L1Loss(reduction='sum')
+        self.l1_noreduce = nn.L1Loss(reduction='none')
         self.extractor = extractor
         self.discriminator = Discriminator_STE(3)  ## local_global sn patch gan
         self.D_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=lr, betas=betasInit)
@@ -63,11 +63,9 @@ class LossWithGAN_STE(nn.Module):
         self.writer.add_scalar('LossD/Discriminator loss', D_loss.item(), count)
 
         output_comp = mask_gt * input_ + (1 - mask_gt) * output
-        hole_loss = 10 * self.l1((1 - mask_gt) * output, (1 - mask_gt) * gt)
-        valid_area_loss = 2 * self.l1(mask_gt * output, mask_gt * gt)
 
         mask_block_loss = dice_loss(mask_model, 1 - mask_gt)
-
+        mask_block_loss *= 0.4
         # --- MSR Reconstruction loss ---
         masks_a = F.interpolate(mask_gt, scale_factor=0.25)
         masks_b = F.interpolate(mask_gt, scale_factor=0.5)
@@ -86,12 +84,14 @@ class LossWithGAN_STE(nn.Module):
         )
 
         # --- Stroke SN Loss ---
-        stroke_gt_vec = stroke_gt.reshape(stroke_gt.size(0), -1)
-        stroke_model_vec = stroke_model.reshape(stroke_model.size(0), -1)
-        stroke_loss = self.l1_sum(stroke_gt_vec, stroke_model_vec)
-        stroke_loss_divisor = torch.max(torch.ones(stroke_gt.size(0)).cuda(),
-                                        torch.min(stroke_gt_vec.sum(dim=1), stroke_model_vec.sum(dim=1)))
-        stroke_loss = (stroke_loss / stroke_loss_divisor).sum()
+        stroke_loss = self.l1_noreduce(stroke_gt, stroke_model)
+        stroke_gt: torch.Tensor # B, C, W, H
+        with torch.no_grad():
+            p_positive = stroke_gt.sum([1, 2, 3]) / (stroke_gt.shape[2] * stroke_gt.shape[3])
+            p_positive = torch.clamp(p_positive, 3e-3).reshape(-1, 1, 1, 1) # B, C, W, H
+            p_pixels = (1 - p_positive) * (1 - stroke_gt) + p_positive * stroke_gt
+        stroke_loss = (stroke_loss / p_pixels).mean()
+
 
         # --- Perceptual Loss ---
         perceptual_loss = 0.0
@@ -101,6 +101,7 @@ class LossWithGAN_STE(nn.Module):
         for i in range(3):
             perceptual_loss += self.l1(feat_output[i], feat_gt[i])
             perceptual_loss += self.l1(feat_output_comp[i], feat_gt[i])
+        perceptual_loss *= 0.01 # TODO: Check paper
 
         # --- Style Loss ---
         style_loss = 0.0
@@ -109,15 +110,14 @@ class LossWithGAN_STE(nn.Module):
                                        gram_matrix(feat_gt[i]))
             style_loss += self.l1(gram_matrix(feat_output_comp[i]),
                                        gram_matrix(feat_gt[i]))
+        style_loss *= 120
 
-        self.writer.add_scalar('LossG/Hole loss', hole_loss.item(), count)
-        self.writer.add_scalar('LossG/Valid loss', valid_area_loss.item(), count)
         self.writer.add_scalar('LossG/msr recon loss', recon_loss.item(), count)
         self.writer.add_scalar('LossPrc/Perceptual loss', perceptual_loss.item(), count)
         self.writer.add_scalar('LossStyle/style loss', style_loss.item(), count)
         self.writer.add_scalar('LossStyle/mask loss', mask_block_loss.item(), count)
         self.writer.add_scalar('LossStyle/stroke loss', stroke_loss.item(), count)
 
-        GLoss = recon_loss + hole_loss + valid_area_loss + 0.01 * perceptual_loss + 120 * style_loss + 0.1 * D_model + 0.4 * mask_block_loss + stroke_loss
+        GLoss = recon_loss + perceptual_loss + style_loss + 0.1 * D_model + mask_block_loss + stroke_loss
         self.writer.add_scalar('Generator/Joint loss', GLoss.item(), count)
         return GLoss.sum()

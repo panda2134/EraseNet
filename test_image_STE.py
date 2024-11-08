@@ -49,15 +49,15 @@ result_straight = savePath + 'StrOuput/'
 
 if not os.path.exists(savePath):
     os.makedirs(savePath)
-    os.makedirs(result_with_mask)
+    # os.makedirs(result_with_mask)
     os.makedirs(result_straight)
 
 
-Erase_data = ErasingData(dataRoot, loadSize, training=False)
-Erase_data = DataLoader(Erase_data, batch_size=batchSize, shuffle=True, num_workers=args.numOfWorkers, drop_last=False)
+erase_data = ErasingData(dataRoot, loadSize, training=False)
+erase_data = DataLoader(erase_data, batch_size=batchSize, shuffle=True, num_workers=args.numOfWorkers, drop_last=False)
 
 
-netG = EnsExamNet(3)
+netG = EnsExamNet()
 
 netG.load_state_dict(torch.load(args.pretrained))
 
@@ -73,16 +73,16 @@ print('OK!')
 import time
 start = time.time()
 netG.eval()
-for imgs, gt, masks, path in (Erase_data):
+for imgs, gt, masks, stroke_masks, path in erase_data:
     if cuda:
         imgs = imgs.cuda()
         gt = gt.cuda()
         masks = masks.cuda()
-    out1, out2, out3, g_images,mm = netG(imgs)
-    g_image = g_images.data.cpu()
+    x_o1, x_o2, x_o3, output, mm, stroke_mm = netG(imgs)
+    g_image = output.data.cpu()
     gt = gt.data.cpu()
     mask = masks.data.cpu()
-    g_image_with_mask = gt * (mask) + g_image * (1- mask)
+    g_image_with_mask = gt * mask + g_image * (1 - mask)
 
     save_image(g_image_with_mask, result_with_mask+path[0])
     save_image(g_image, result_straight+path[0])
