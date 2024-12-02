@@ -34,22 +34,16 @@ if cuda:
     print('Cuda is available!')
     cudnn.benchmark = True
 
-
-def visual(image):
-    im =(image).transpose(1,2).transpose(2,3).detach().cpu().numpy()
-    Image.fromarray(im[0].astype(np.uint8)).show()
-
 batchSize = args.batchSize
 loadSize = (args.loadSize, args.loadSize)
 dataRoot = args.dataRoot
 savePath = args.savePath
 result_with_mask = savePath + 'WithMaskOutput/'
 result_straight = savePath + 'StrOuput/'
-#import pdb;pdb.set_trace()
 
 if not os.path.exists(savePath):
     os.makedirs(savePath)
-    # os.makedirs(result_with_mask)
+    os.makedirs(result_with_mask)
     os.makedirs(result_straight)
 
 
@@ -84,8 +78,8 @@ for imgs, gt, masks, stroke_masks, path in erase_data:
     mask = masks.data.cpu()
     g_image_with_mask = gt * mask + g_image * (1 - mask)
 
-    save_image(g_image_with_mask, result_with_mask+path[0])
-    save_image(g_image, result_straight+path[0])
+    save_image(g_image_with_mask, result_with_mask+path[0].replace('jpg', 'png'))
+    save_image(g_image, result_straight+path[0].replace('jpg', 'png'))
 
 
 

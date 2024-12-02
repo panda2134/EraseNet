@@ -1,13 +1,7 @@
-import os
 import math
 import argparse
-import torch
-import torch.nn as nn
-import torch.backends.cudnn as cudnn
 from PIL import Image
 import numpy as np
-from torch.autograd import Variable
-from torchvision.utils import save_image
 from torch.utils.data import DataLoader
 from data.dataloader import DevData
 from scipy import signal, ndimage
@@ -106,72 +100,59 @@ def msssim(img1, img2):
     mssim_power = np.power(np.abs(mssim[level - 1]), weight[level - 1])
     return np.prod(sign_mcs * mcs_power) * sign_mssim * mssim_power
 
-def ImageTransform(loadSize, cropSize):
-    return Compose([
-        Resize(size=loadSize, interpolation=Image.BICUBIC),
-      #  RandomCrop(size=cropSize),
-        #RandomHorizontalFlip(p=0.5),
-        ToTensor(),
-    ])
-
-def visual(image):
-    im =(image).transpose(1,2).transpose(2,3).detach().cpu().numpy()
-    Image.fromarray(im[0].astype(np.uint8)).show()
-
 imgData = DevData(data_root=img_path, gt_root=gt_path)
 data_loader = DataLoader(imgData, batch_size=1, shuffle=True, num_workers=0, drop_last=False)
 
 for k, (img,lbl,path) in enumerate(data_loader):
-	##import pdb;pdb.set_trace()
-	mse = ((lbl - img)**2).mean()
-	sum_mse += mse
-	print(path,count, 'mse: ', mse)
-	if mse == 0:
-		continue
-	count += 1
-	psnr = 10 * math.log10(1/mse)
-	sum_psnr += psnr
-	print(path,count, ' psnr: ', psnr)
-	#l1_loss += nn.L1Loss()(img, lbl)
+    mse = ((lbl - img)**2).mean()
+    sum_mse += mse
+    print(path,count, 'mse: ', mse)
+    if mse == 0:
+        continue
+    count += 1
+    psnr = 10 * math.log10(1/mse)
+    sum_psnr += psnr
+    print(path,count, ' psnr: ', psnr)
+    #l1_loss += nn.L1Loss()(img, lbl)
 
 
-	R = lbl[0,0,:, :]
-	G = lbl[0,1,:, :]
-	B = lbl[0,2,:, :]
+    R = lbl[0,0,:, :]
+    G = lbl[0,1,:, :]
+    B = lbl[0,2,:, :]
 
-	YGT = .299 * R + .587 * G + .114 * B
+    YGT = .299 * R + .587 * G + .114 * B
 
-	R = img[0,0,:, :]
-	G = img[0,1,:, :]
-	B = img[0,2,:, :]
+    R = img[0,0,:, :]
+    G = img[0,1,:, :]
+    B = img[0,2,:, :]
 
-	YBC = .299 * R + .587 * G + .114 * B
-	Diff = abs(np.array(YBC*255) - np.array(YGT*255)).round().astype(np.uint8)
-	AGE = np.mean(Diff)
-	print(' AGE: ', AGE) 
-	mssim = msssim(np.array(YGT*255), np.array(YBC*255))
-	sum_ssim += mssim
-	print(count, ' ssim:', mssim)
-	threshold = 20
+    YBC = .299 * R + .587 * G + .114 * B
+    Diff = abs(np.array(YBC*255) - np.array(YGT*255)).round().astype(np.uint8)
+    AGE = np.mean(Diff)
+    print(' AGE: ', AGE)
+    mssim = msssim(np.array(YGT*255), np.array(YBC*255))
+    sum_ssim += mssim
+    print(count, ' ssim:', mssim)
+    threshold = 20
 
-	Errors = Diff > threshold
-	EPs = sum(sum(Errors)).astype(float)
-	pEPs = EPs / float(512*512)
-	print(' pEPS: ' , pEPs)
-	sum_pEPS += pEPs
-	########################## CEPs and pCEPs ################################
-	structure = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
-	sum_AGE+=AGE
-	erodedErrors = ndimage.binary_erosion(Errors, structure).astype(Errors.dtype)
-	CEPs = sum(sum(erodedErrors))
-	pCEPs = CEPs / float(512*512)
-	print(' pCEPS: ' , pCEPs)
-	sum_pCEPS += pCEPs
+    Errors = Diff > threshold
+    EPs = sum(sum(Errors)).astype(float)
+    pEPs = EPs / float(512*512)
+    print(' pEPS: ' , pEPs)
+    sum_pEPS += pEPs
+    ########################## CEPs and pCEPs ################################
+    structure = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
+    sum_AGE+=AGE
+    erodedErrors = ndimage.binary_erosion(Errors, structure).astype(Errors.dtype)
+    CEPs = sum(sum(erodedErrors))
+    pCEPs = CEPs / float(512*512)
+    print(' pCEPS: ' , pCEPs)
+    sum_pCEPS += pCEPs
 
-print(sum_psnr)
-print('avg mse:', sum_mse / count)
+# print(sum_psnr)
+print('avg mse:', (sum_mse / count) * 100)
 print('average psnr:', sum_psnr / count)
-print('average ssim:', sum_ssim / count)
+print('average ssim:', (sum_ssim / count) * 100)
 print('average AGE:', sum_AGE / count)
-print('average pEPS:', sum_pEPS / count)
-print('average pCEPS:', sum_pCEPS / count)
+print('average pEPS:', (sum_pEPS / count) * 100)
+print('average pCEPS:', (sum_pCEPS / count) * 100)

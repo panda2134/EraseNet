@@ -35,7 +35,9 @@ def random_rotate(imgs):
 def CheckImageFile(filename):
     return any(filename.endswith(extention) for extention in ['.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG', '.bmp', '.BMP'])
 
-def ImageTransform(loadSize):
+def ImageTransform(loadSize, training=True):
+    if not training:
+        loadSize = (1536, 2048)
     return Compose([
         Resize(size=loadSize, interpolation=Image.BICUBIC),
         ToTensor(),
@@ -47,7 +49,7 @@ class ErasingData(Dataset):
         self.imageFiles = [join (dataRootK, files) for dataRootK, dn, filenames in walk(dataRoot) \
             for files in filenames if CheckImageFile(files)]
         self.loadSize = loadSize
-        self.ImgTrans = ImageTransform(loadSize)
+        self.ImgTrans = ImageTransform(loadSize, training)
         self.training = training
     
     def __getitem__(self, index):
@@ -85,17 +87,17 @@ class DevData(Dataset):
                             for files in filenames if CheckImageFile(files)]
         self.gt_root = gt_root
         self.load_size = load_size
-        self.img_transform = ImageTransform(load_size)
+        self.img_transform = ImageTransform(load_size, training=False)
     
     def __getitem__(self, index):
         img = Image.open(self.image_files[index])
-        gt = Image.open(os.path.join(self.gt_root, os.path.basename(self.image_files[index])))
+        gt = Image.open(os.path.join(self.gt_root, os.path.basename(self.image_files[index])).replace('png', 'jpg'))
         inputImage = self.img_transform(img.convert('RGB'))
 
         groundTruth = self.img_transform(gt.convert('RGB'))
         path = self.image_files[index].split('/')[-1]
 
-        return inputImage, groundTruth,path
+        return inputImage, groundTruth, path
     
     def __len__(self):
         return len(self.image_files)

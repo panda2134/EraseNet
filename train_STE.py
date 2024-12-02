@@ -19,8 +19,6 @@ from models.ensexam import EnsExamNet
 
 torch.set_num_threads(5)
 
-# os.environ["CUDA_VISIBLE_DEVICES"] = "3"    ### set the gpu as No....
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--numOfWorkers', type=int, default=0,
                     help='workers for dataloader')
@@ -57,7 +55,6 @@ if not os.path.exists(args.modelsSavePath):
 
 dataRoot = args.dataRoot
 
-# import pdb;pdb.set_trace()
 erase_data = ErasingData(dataRoot, loadSize, training=True)
 erase_data = DataLoader(erase_data, batch_size=batchSize,
                         shuffle=True, num_workers=args.numOfWorkers, drop_last=False, pin_memory=True)
