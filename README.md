@@ -40,7 +40,8 @@ If you want to predict the results, run:
 python test_image_STE.py --dataRoot 'your path'  \
             --batchSize 1 \
             --pretrain 'your path' \
-            --savePath 'your path'
+            --savePath 'your path' \
+            --no-dilation --no-compress
 ```
 
 To evaluate the results:

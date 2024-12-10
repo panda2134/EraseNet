@@ -43,6 +43,7 @@ class Residual(nn.Module):
 class EnsExamNet(nn.Module):
     def __init__(self):
         super(EnsExamNet, self).__init__()
+
         #### U-Net ####
         # downsample
         self.conv1 = ConvWithActivation(3, 32, kernel_size=4, stride=2, padding=1)

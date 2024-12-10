@@ -37,7 +37,7 @@ def dice_loss(input, target):
 
 
 class LossWithGAN_STE(nn.Module):
-    def __init__(self, logPath, extractor, Lamda, lr, betasInit=(0.5, 0.9)):
+    def __init__(self, logPath, extractor, Lamda, lr, betasInit=(0.5, 0.9), *, new_loss=True, old_stroke_loss_deno_min=100):
         super(LossWithGAN_STE, self).__init__()
         self.l1 = nn.L1Loss()
         self.l1_noreduce = nn.L1Loss(reduction='none')
@@ -48,6 +48,8 @@ class LossWithGAN_STE(nn.Module):
         self.numOfGPUs = torch.cuda.device_count()
         self.lamda = Lamda
         self.writer = SummaryWriter(logPath)
+        self.new_loss = new_loss
+        self.old_stroke_loss_deno_min = old_stroke_loss_deno_min
 
     def forward(self, input_, gt, mask_gt, stroke_gt, x_o1, x_o2, x_o3, output, mask_model, stroke_model, count, epoch):
         self.discriminator.zero_grad()
@@ -84,14 +86,21 @@ class LossWithGAN_STE(nn.Module):
         )
 
         # --- Stroke SN Loss ---
-        stroke_loss = self.l1_noreduce(stroke_gt, stroke_model)
-        stroke_gt: torch.Tensor # B, C, W, H
-        with torch.no_grad():
-            p_positive = stroke_gt.sum([1, 2, 3]) / (stroke_gt.shape[2] * stroke_gt.shape[3])
-            p_positive = torch.clamp(p_positive, 3e-3).reshape(-1, 1, 1, 1) # B, C, W, H
-            p_pixels = (1 - p_positive) * (1 - stroke_gt) + p_positive * stroke_gt
-        stroke_loss = (stroke_loss / p_pixels).mean()
-
+        if self.new_loss:
+            stroke_loss = self.l1_noreduce(stroke_gt, stroke_model)
+            stroke_gt: torch.Tensor # B, C, W, H
+            with torch.no_grad():
+                p_positive = stroke_gt.sum([1, 2, 3]) / (stroke_gt.shape[2] * stroke_gt.shape[3])
+                p_positive = torch.clamp(p_positive, 3e-3).reshape(-1, 1, 1, 1) # B, C, W, H
+                p_pixels = (1 - p_positive) * (1 - stroke_gt) + p_positive * stroke_gt
+            stroke_loss = (stroke_loss / p_pixels).mean()
+        else:
+            stroke_loss = self.l1(stroke_gt, stroke_model)
+            stroke_gt: torch.Tensor # B, C, W, H
+            with torch.no_grad():
+                p_pixels = torch.min(stroke_gt.sum(), stroke_model.sum())
+                p_pixels = torch.clamp(p_pixels, self.old_stroke_loss_deno_min)
+            stroke_loss = (stroke_loss / p_pixels).mean()
 
         # --- Perceptual Loss ---
         perceptual_loss = 0.0

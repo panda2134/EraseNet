@@ -1,12 +1,10 @@
 import os
-import math
 import argparse
+import shutil
+
 import torch
-import torch.nn as nn
 import torch.backends.cudnn as cudnn
-from PIL import Image
-import numpy as np
-from torch.autograd import Variable
+import torch.nn.functional as F
 from torchvision.utils import save_image
 from torch.utils.data import DataLoader
 from data.dataloader import ErasingData
@@ -27,6 +25,8 @@ parser.add_argument('--dataRoot', type=str,
                     default='')
 parser.add_argument('--pretrained',type=str, default='', help='pretrained models for finetuning')
 parser.add_argument('--savePath', type=str, default='./results/sn_tv/')
+parser.add_argument('--compress', type=bool, required=True, action=argparse.BooleanOptionalAction)
+parser.add_argument('--dilation', type=bool, required=True, action=argparse.BooleanOptionalAction)
 args = parser.parse_args()
 
 cuda = torch.cuda.is_available()
@@ -37,14 +37,18 @@ if cuda:
 batchSize = args.batchSize
 loadSize = (args.loadSize, args.loadSize)
 dataRoot = args.dataRoot
-savePath = args.savePath
-result_with_mask = savePath + 'WithMaskOutput/'
-result_straight = savePath + 'StrOuput/'
+save_path = args.savePath
+result_with_mask = save_path + 'WithMaskOutput/'
+result_with_stroke_mask = save_path + 'WithStrokeMaskOutput/'
+result_straight = save_path + 'StrOutput/'
+result_stroke = save_path + 'StrokeOutput/'
+result_mm = save_path + 'MaskOutput/'
 
-if not os.path.exists(savePath):
-    os.makedirs(savePath)
-    os.makedirs(result_with_mask)
-    os.makedirs(result_straight)
+if os.path.exists(save_path):
+    shutil.rmtree(save_path)
+
+for x in [result_with_mask, result_with_stroke_mask, result_straight, result_stroke, result_mm]:
+    os.makedirs(x)
 
 
 erase_data = ErasingData(dataRoot, loadSize, training=False)
@@ -67,20 +71,31 @@ print('OK!')
 import time
 start = time.time()
 netG.eval()
-for imgs, gt, masks, stroke_masks, path in erase_data:
-    if cuda:
-        imgs = imgs.cuda()
-        gt = gt.cuda()
-        masks = masks.cuda()
-    x_o1, x_o2, x_o3, output, mm, stroke_mm = netG(imgs)
-    g_image = output.data.cpu()
-    gt = gt.data.cpu()
-    mask = masks.data.cpu()
-    g_image_with_mask = gt * mask + g_image * (1 - mask)
+for original_img, _, _, _, path in erase_data:
+    if cuda: original_img = original_img.cuda()
+    x_o1, x_o2, x_o3, output, mm, stroke_mm = netG(original_img)
+    output = output.data.cpu()
+    original_img = original_img.data.cpu()
+    print(f"dilation = {args.dilation}", path)
+    if args.dilation:
+        dilation_size = 13
+        assert dilation_size % 2 == 1
+        padding = dilation_size // 2
+        stroke_mm: torch.Tensor = torch.clip(stroke_mm.data.cpu(), 0.0, 1.0)
+        kernel = torch.ones((3, 3, dilation_size, dilation_size))
+        stroke_mm = F.conv2d(stroke_mm, kernel, padding=padding)
+        stroke_mm = torch.threshold(stroke_mm, 0.5, 0)
 
-    save_image(g_image_with_mask, result_with_mask+path[0].replace('jpg', 'png'))
-    save_image(g_image, result_straight+path[0].replace('jpg', 'png'))
+    mm = torch.clip(mm.data.cpu(), 0.0, 1.0)
+    stroke_mm = torch.clip(stroke_mm.data.cpu(), 0.0, 1.0)
 
+    output_with_stroke_mask = output * stroke_mm + original_img * (1 - stroke_mm)
+    output_with_mask = output * mm + original_img * (1 - mm)
 
-
-
+    p = path[0]
+    if not args.compress: p = p.replace('jpg', 'png')
+    save_image(output_with_mask, result_with_mask+p)
+    save_image(output_with_stroke_mask, result_with_stroke_mask+p)
+    save_image(output, result_straight+p)
+    save_image(stroke_mm, result_stroke+p)
+    save_image(mm, result_mm+p)

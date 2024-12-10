@@ -33,6 +33,10 @@ parser.add_argument('--dataRoot', type=str,
                     default='')
 parser.add_argument('--pretrained', type=str, default='', help='pretrained models for finetuning')
 parser.add_argument('--num_epochs', type=int, default=500, help='epochs')
+parser.add_argument('--better-data-aug', type=bool, required=True, help='Enable data augmentation', action=argparse.BooleanOptionalAction)
+parser.add_argument('--new-stroke-loss', type=bool, required=True, help='Enable new stroke loss', action=argparse.BooleanOptionalAction)
+parser.add_argument('--old-stroke-loss-deno-min', type=int, default=100,
+                    help='Old stroke loss denominator clamp min')
 args = parser.parse_args()
 
 
@@ -55,9 +59,8 @@ if not os.path.exists(args.modelsSavePath):
 
 dataRoot = args.dataRoot
 
-erase_data = ErasingData(dataRoot, loadSize, training=True)
-erase_data = DataLoader(erase_data, batch_size=batchSize,
-                        shuffle=True, num_workers=args.numOfWorkers, drop_last=False, pin_memory=True)
+erase_data = ErasingData(dataRoot, loadSize, training=True, better_data_aug=args.better_data_aug)
+erase_data = DataLoader(erase_data, batch_size=batchSize, shuffle=True, num_workers=args.numOfWorkers, drop_last=False, pin_memory=True)
 
 netG = EnsExamNet()
 
@@ -76,7 +79,8 @@ count = 1
 
 G_optimizer = optim.Adam(netG.parameters(), lr=0.0001, betas=(0.5, 0.9))
 
-criterion = LossWithGAN_STE(args.logPath, VGG16FeatureExtractor(), lr=0.00001, betasInit=(0.0, 0.9), Lamda=10.0)
+criterion = LossWithGAN_STE(args.logPath, VGG16FeatureExtractor(), lr=0.00001, betasInit=(0.0, 0.9), Lamda=10.0,
+                            new_loss=args.new_stroke_loss, old_stroke_loss_deno_min=args.old_stroke_loss_deno_min)
 
 if cuda:
     criterion = criterion.cuda()
@@ -90,7 +94,7 @@ num_epochs = args.num_epochs
 for i in range(1, num_epochs + 1):
     netG.train()
 
-    for k, (imgs, gt, masks, stroke_masks, path) in enumerate(erase_data):
+    for k, (imgs, gt, masks, stroke_masks, _) in enumerate(erase_data):
         if cuda:
             imgs = imgs.cuda()
             gt = gt.cuda()

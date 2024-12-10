@@ -3,7 +3,7 @@ import argparse
 from PIL import Image
 import numpy as np
 from torch.utils.data import DataLoader
-from data.dataloader import DevData
+from data.dataloader import EvalData
 from scipy import signal, ndimage
 import gauss
 
@@ -100,8 +100,8 @@ def msssim(img1, img2):
     mssim_power = np.power(np.abs(mssim[level - 1]), weight[level - 1])
     return np.prod(sign_mcs * mcs_power) * sign_mssim * mssim_power
 
-imgData = DevData(data_root=img_path, gt_root=gt_path)
-data_loader = DataLoader(imgData, batch_size=1, shuffle=True, num_workers=0, drop_last=False)
+imgData = EvalData(data_root=img_path, gt_root=gt_path)
+data_loader = DataLoader(imgData, batch_size=1, shuffle=True, num_workers=1, drop_last=False)
 
 for k, (img,lbl,path) in enumerate(data_loader):
     mse = ((lbl - img)**2).mean()
